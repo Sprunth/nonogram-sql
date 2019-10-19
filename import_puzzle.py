@@ -5,11 +5,9 @@ import sys
 
 from hashlib import md5
 
-from db import create_connection, db_execute, db_execute_with_task
+from db import create_connection, db_execute, db_execute_with_params, db_clear_table
+from helpers import debug_dump_puzzle, Dimension
 
-class Dimension:
-    ROW = 'row'
-    COLUMN = 'column'
 
 class ValidKeys:
     catalogue = 'catalogue'
@@ -17,12 +15,14 @@ class ValidKeys:
     width = 'width'
     height = 'height'
 
+
 class ParseState:
     metadata = 'metadata'
     rows = 'rows'
     columns = 'columns'
     goal = 'goal'
-    
+
+
 def insert_puzzle_into_db(puzzle_id: str, width: int, height: int, row_rules: List[List[int]], column_rules: List[List[int]]):
     db_conn = create_connection(f'{puzzle_id}.sqlite')
     db_conn.set_trace_callback(print)
@@ -37,8 +37,14 @@ def insert_puzzle_into_db(puzzle_id: str, width: int, height: int, row_rules: Li
             insert_rule(db_conn, column, rule, column_number, Dimension.COLUMN)
     db_conn.commit()
 
+    debug_dump_puzzle(db_conn)
+
 
 def setup_db(db_conn, puzzle_id: str):
+    db_clear_table(db_conn, 'metadata')
+    db_clear_table(db_conn, 'rules')
+    db_conn.commit()
+
     create_metadata_sql = (
         f'CREATE TABLE IF NOT EXISTS metadata ('
         f'id integer PRIMARY KEY,'
@@ -61,23 +67,24 @@ def setup_db(db_conn, puzzle_id: str):
     db_execute(db_conn, create_rules_sql)
     db_conn.commit()
 
+
 def insert_rule(conn, dimension_index, rule, rule_number, dimension):
     insert_rule_sql = (
         f'INSERT INTO rules(dimension_index,rule,rule_number,dimension)'
         f'VALUES(?,?,?,?)'
     )
     
-    task = (dimension_index, rule, rule_number, dimension)
-    db_execute_with_task(conn, insert_rule_sql, task)
+    params = (dimension_index, rule, rule_number, dimension)
+    db_execute_with_params(conn, insert_rule_sql, params)
+
 
 if __name__ == '__main__':
     filename = sys.argv[1]
 
-    title = ''
     width = height = 0
     goal = ''
-    row_rules = []
-    column_rules = []
+    row_rules = []  # type: List[List[int]]
+    column_rules = []  # type: List[List[int]]
 
     parse_state = ParseState.metadata
 
@@ -99,9 +106,9 @@ if __name__ == '__main__':
                 if line.startswith(ValidKeys.catalogue):
                     pass
                 elif line.startswith(ValidKeys.title):
-                    title = line[len(ValidKeys.title) + 1:]
-                    title = title.replace('"', '')
-                    title = title.encode('utf-8')
+                    _title = line[len(ValidKeys.title) + 1:]
+                    _title = _title.replace('"', '')
+                    title = _title.encode('utf-8')
                 elif line.startswith(ValidKeys.width):
                     width = int(line.split(' ')[-1])
                 elif line.startswith(ValidKeys.height):
@@ -112,7 +119,7 @@ if __name__ == '__main__':
                     continue
                 target_rule_list.append(list(map(int, line.split(','))))
                 
-    print(f'Title: {title}')
+    print(f'Title: {title!r}')
     print(f'width {width} x column {height}')
     print('rows')
     for r in row_rules:
