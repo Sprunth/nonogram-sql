@@ -11,12 +11,17 @@ def create_connection(db_file):
     except Error as e:
         print(e)
  
-def create_Table(conn, create_sql):
+def db_execute(conn, sql):
     try:
         c = conn.cursor()
-        c.execute(create_sql)
+        c.execute(sql)
     except Error as e:
         print(e)
+
+def db_execute_with_task(conn, sql, task):
+    cur = conn.cursor()
+    cur.execute(sql, task)
+    return cur.lastrowid
 
 if __name__ == '__main__':
     create_connection(r"nonogram.db")
