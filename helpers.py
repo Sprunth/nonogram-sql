@@ -23,6 +23,11 @@ def debug_dump_puzzle(conn):
         rule_list = get_rule_list(conn, Dimension.COLUMN, i)
         print(f'Column {i}: {rule_list}')
 
+    for row in range(row_count):
+        row_values = db_execute_with_params(conn, 'SELECT value FROM puzzle WHERE row=? ORDER BY column', (row,))
+        row_values = [str(v[0]) for v in row_values]
+        print(' '.join(row_values))
+
 
 def get_rule_list(conn, dimension: str, dimension_index: int):
     sql = (

@@ -26,7 +26,7 @@ class ParseState:
 def insert_puzzle_into_db(puzzle_id: str, width: int, height: int, row_rules: List[List[int]], column_rules: List[List[int]]):
     db_conn = create_connection(f'{puzzle_id}.sqlite')
     db_conn.set_trace_callback(print)
-    setup_db(db_conn, puzzle_id)
+    setup_db(db_conn)
 
     for row, rule_list in enumerate(row_rules):
         for rule_number, rule in enumerate(rule_list):
@@ -37,12 +37,26 @@ def insert_puzzle_into_db(puzzle_id: str, width: int, height: int, row_rules: Li
             insert_rule(db_conn, column, rule, column_number, Dimension.COLUMN)
     db_conn.commit()
 
+    row_count = db_execute_with_params(db_conn, 'SELECT COUNT(DISTINCT dimension_index) FROM rules WHERE dimension=?', (Dimension.ROW,))[0][0]
+    column_count = db_execute_with_params(db_conn, 'SELECT COUNT(DISTINCT dimension_index) FROM rules WHERE dimension=?', (Dimension.COLUMN,))[0][0]
+
+    for row in range(row_count):
+        for column in range(column_count):
+            insert_sql = (
+                f'INSERT INTO puzzle(row, column, value)'
+                f'VALUES(?,?,?)'
+            )
+            params = (row, column, 0)
+            db_execute_with_params(db_conn, insert_sql, params)
+    db_conn.commit()
+
     debug_dump_puzzle(db_conn)
 
 
-def setup_db(db_conn, puzzle_id: str):
+def setup_db(db_conn):
     db_clear_table(db_conn, 'metadata')
     db_clear_table(db_conn, 'rules')
+    db_clear_table(db_conn, 'puzzle')
     db_conn.commit()
 
     create_metadata_sql = (
@@ -56,15 +70,26 @@ def setup_db(db_conn, puzzle_id: str):
     
     create_rules_sql = (
         f'CREATE TABLE IF NOT EXISTS rules ('
-        f'id integer PRIMARY KEY, '
-        f'dimension_index integer NOT NULL, '
-        f'rule integer NOT NULL, '
-        f'rule_number integer NOT NULL, '
+        f'id integer PRIMARY KEY,'
+        f'dimension_index integer NOT NULL,'
+        f'rule integer NOT NULL,'
+        f'rule_number integer NOT NULL,'
         f'dimension text NOT NULL'
         f');'
     )
+
+    create_puzzle_sql = (
+        f'CREATE TABLE IF NOT EXISTS puzzle ('
+        f'row integer NOT NULL,'
+        f'column integer NOT NULL,'
+        f'value integer NOT NULL DEFAULT 0,'
+        f'PRIMARY KEY(row, column)'
+        f');'
+    )
+
     db_execute(db_conn, create_metadata_sql)
     db_execute(db_conn, create_rules_sql)
+    db_execute(db_conn, create_puzzle_sql)
     db_conn.commit()
 
 
